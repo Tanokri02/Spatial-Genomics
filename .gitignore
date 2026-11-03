@@ -1,0 +1,26 @@
+# data and outputs (large; reproduce with `psychad build`)
+data/
+results/
+*.h5ad
+*.h5
+*.npz
+*.parquet
+logs/
+wandb/
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/
+
+# keep tiny example artifacts
+!configs/**

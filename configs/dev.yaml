@@ -1,0 +1,31 @@
+# Fast-iteration profile: ~10x less data, few seeds. Use while the code is being debugged / for laptop runs.
+run_name: dev
+
+build:
+  cells_per_donor_class: 60
+  n_hvg: 2000
+  hvg_cells: 30000
+
+cv:
+  seeds: [0]
+  train_cells_per_donor_class: 40
+  bootstrap_reps: 200
+
+aim2:
+  matched_cells_per_donor: 30
+  downsample_curve: [10, 20, 30]
+
+models:
+  cell_rf:   {params: {n_estimators: 100}}
+  cell_xgb:  {params: {n_estimators: 150}}
+  cell_mlp:  {params: {epochs: 10}}
+  cell_mlp_large: {params: {epochs: 10}}
+  mil_attn:  {params: {steps: 800, eval_every: 200}}
+
+controls:
+  permutation_reps: 50
+
+scaling:
+  hidden_grid: [[64], [256], [512, 256]]
+  gene_grid: [500, 2000]
+  cells_per_donor_grid: [20, 40]

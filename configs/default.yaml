@@ -1,0 +1,205 @@
+# Default configuration. Override with `psychad --profile dev` (merges configs/dev.yaml on top)
+# or `psychad --config my.yaml`. All paths are relative to the repo root unless absolute.
+
+run_name: full            # derived data -> data/derived/<run_name>/, outputs -> results/<run_name>/
+seed: 0
+
+paths:
+  data_dir: data
+  results_dir: results
+
+# --------------------------------------------------------------------------------------
+# Data source
+# --------------------------------------------------------------------------------------
+source:
+  kind: census            # census (stream selected cells, no big download) | h5ad (local files)
+  census_version: "2025-11-08"   # pinned (this was "stable" in Nov 2026); never use "stable" for the real run
+  organism: homo_sapiens
+  fetch_chunk_cells: 50000   # contiguous key window per request. Measured ~750 cells/s from Census (scattered
+                             # single-cell reads were >100x slower), so a full pass over MSSM+RADC takes ~2 h.
+  # --- only for kind: h5ad ---
+  # Keys are cohort names from `cohorts` below. Process one file at a time to stay within disk limits.
+  h5ad_paths: {}
+  h5ad_counts: raw.X      # CELLxGENE h5ads keep raw counts in raw.X (X is normalised). Or `X` / `layer:<name>`
+  obs_columns:            # canonical name -> column in the h5ad obs
+    donor_id: donor_id
+    disease: disease
+    cell_type: cell_type
+    development_stage: development_stage
+    sex: sex
+
+# PsychAD ("Population-scale cross-disorder atlas of the human prefrontal cortex") = 4 CELLxGENE datasets.
+# Verified with `psychad inspect` against the Census (Nov 2026): 1,494 donors / 7.65M nuclei, all DLPFC, 10x 3' v3.
+cohorts:
+  MSSM:  37a17b78-4864-4a42-b67b-31c00962795a   # 4.14M nuclei; AD / PD / DLB / controls / psychiatric
+  RADC:  5e57cd50-8e42-42d6-940d-5c1660d06864   # 0.69M nuclei; ROSMAP-like AD + controls
+  Aging: 4442d412-91cb-4261-acca-8adf5fa04c11   # 1.33M nuclei; CONTROLS ONLY (no cases) -> cohort confound
+  HBCC:  5c97eeeb-7e52-44b3-b010-b832b1f5424c   # 1.49M nuclei; psychiatric (SCZ/BD) + young controls
+# Default excludes Aging and HBCC. Aging has no cases, and 113 of its donors ALSO appear in MSSM (178 appear in HBCC),
+# so adding it contributes only 10 new control donors (verified: 217 -> 227 controls) plus extra nuclei for 68 existing
+# controls, which no case donor has (see docs/DATA_NOTES.md). HBCC has no neurodegeneration cases.
+cohorts_use: [MSSM, RADC]
+
+# --------------------------------------------------------------------------------------
+# Donor-level labels and filters
+# --------------------------------------------------------------------------------------
+labels:
+  # CELLxGENE `disease` is a donor-level, multi-valued string such as "dementia || Alzheimer disease".
+  classes: [Control, AD, PD, DLB]
+  terms:
+    AD:  ["Alzheimer disease"]
+    PD:  ["Parkinson disease"]
+    DLB: ["Lewy body dementia"]
+  control_terms: ["normal"]
+  # Generic parent term present in most dementia donors; ignored when a specific term is present
+  # (so "dementia || Parkinson disease" = PD, i.e. PD with dementia is kept in PD).
+  generic_terms: ["dementia"]
+  # Donors with 2+ of the specific terms ("comorbid") or any other diagnosis are dropped.
+
+donors:
+  min_age: 60             # controls span 0-89; without this AD-vs-Control becomes old-vs-young
+  age_top_code: 90        # "80 year-old and over" is parsed as 90
+  min_total_cells: 200    # donor must have at least this many nuclei (before subsampling)
+
+# Prediction tasks: map donor label -> task label (None/null drops the donor for that task).
+tasks:
+  four_class: {Control: Control, AD: AD, PD: PD, DLB: DLB}
+  lbd_group:  {Control: Control, AD: AD, PD: LBD, DLB: LBD}    # PD+DLB merged (63 donors instead of 29/34)
+  ad_vs_control:  {Control: Control, AD: AD}
+  pd_vs_control:  {Control: Control, PD: PD}
+  dlb_vs_control: {Control: Control, DLB: DLB}
+default_task: four_class
+
+# --------------------------------------------------------------------------------------
+# Cell classes (first matching regex on CELLxGENE `cell_type` wins). Unmatched cell types are dropped.
+# Chosen: the six abundant, biologically central populations in the proposal (neurons, microglia,
+# astrocytes, oligodendrocytes) + OPC. Vascular/immune types are too sparse per donor (see docs/DATA_NOTES.md).
+# --------------------------------------------------------------------------------------
+cell_classes:
+  - {name: OPC,   pattern: "oligodendrocyte precursor"}
+  - {name: Oligo, pattern: "^oligodendrocyte$"}
+  - {name: Astro, pattern: "^astrocyte"}
+  - {name: Micro, pattern: "^microglial"}
+  - {name: EN,    pattern: "glutamatergic"}
+  - {name: IN,    pattern: "GABAergic"}
+cell_classes_use: [EN, IN, Astro, Micro, Oligo, OPC]
+
+# --------------------------------------------------------------------------------------
+# Build (extract -> subsample -> gene panel -> shards)
+# --------------------------------------------------------------------------------------
+build:
+  cells_per_donor_class: 300     # cap; gives donors ~equal weight, shrinks data ~20x
+  min_cells_per_donor_class: 20  # donor x class groups below this are dropped
+  n_hvg: 5000                    # stored panel, ordered by HVG rank (so top-k subsets are prefixes)
+  hvg_cells: 100000              # donor-balanced random subset used for gene statistics (label-free)
+  hvg_min_cell_fraction: 0.005
+  gene_biotypes: [protein_coding]   # Census feature_type; ignored if column absent (h5ad)
+  exclude_gene_patterns: ["^MT-", "^RPL", "^RPS", "^MALAT1$", "^NEAT1$", "^XIST$", "^TSIX$"]
+  exclude_gene_names: [RPS4Y1, DDX3Y, UTY, KDM5D, USP9Y, ZFY, EIF1AY, TXLNGY, NLGN4Y, TTTY14, PRKY, LINC00278]
+  target_sum: 10000
+
+# --------------------------------------------------------------------------------------
+# Cross-validation (shared by every experiment so results are directly comparable)
+# --------------------------------------------------------------------------------------
+cv:
+  n_splits: 5
+  seeds: [0, 1, 2]
+  stratify_by_cohort: true   # stratify folds on label x cohort where each stratum has >= n_splits donors
+  train_cells_per_donor_class: 100   # extra cap applied to TRAINING cells (test cells are never capped)
+  donor_aggregation: mean_prob       # mean_prob | mean_logprob | vote
+  bootstrap_reps: 1000
+  load_cells_per_donor_class: null   # RAM saver: also caps TEST cells if set (all ~0.9M cells need ~5 GB of RAM)
+
+# --------------------------------------------------------------------------------------
+# Models. `kind`: cell (fit on cells, aggregate to donors) | donor (pseudobulk) | bag (attention MIL).
+# Do not constrain size up-front: the `large` variants are the accuracy ceiling; `psychad scaling`
+# then sweeps width/depth/genes downward to find the smallest model within tolerance of the best.
+# --------------------------------------------------------------------------------------
+models:
+  cell_lr:
+    kind: cell
+    family: logreg
+    params: {C: 0.05, penalty: l2, max_iter: 300}
+  cell_rf:
+    kind: cell
+    family: rf
+    params: {n_estimators: 300, max_features: sqrt, min_samples_leaf: 3}
+  cell_xgb:
+    kind: cell
+    family: xgb
+    params: {n_estimators: 400, max_depth: 6, learning_rate: 0.08, subsample: 0.8, colsample_bytree: 0.5}
+  cell_mlp:
+    kind: cell
+    family: mlp
+    params: {hidden: [512, 256], dropout: 0.3, input_dropout: 0.2, lr: 0.001, weight_decay: 0.01,
+             epochs: 30, batch_size: 512, patience: 5}
+  cell_mlp_large:
+    kind: cell
+    family: mlp
+    params: {hidden: [2048, 1024, 512], dropout: 0.4, input_dropout: 0.3, lr: 0.0005, weight_decay: 0.05,
+             epochs: 40, batch_size: 512, patience: 6}
+  pb_lr:                # donor-level: mean log-normalised expression per donor (all cells)
+    kind: donor
+    family: logreg
+    params: {Cs: [0.0001, 0.001, 0.01, 0.1, 1.0], max_iter: 1000}   # C chosen by inner CV on training donors
+    features: pseudobulk_all
+  pb_class_lr:          # donor-level: per-cell-class pseudobulk concatenated (6 x genes features)
+    kind: donor
+    family: logreg
+    params: {Cs: [0.0001, 0.001, 0.01, 0.1, 1.0], max_iter: 1000}
+    features: pseudobulk_by_class
+  pb_class_xgb:
+    kind: donor
+    family: xgb
+    params: {n_estimators: 300, max_depth: 3, learning_rate: 0.05, subsample: 0.8, colsample_bytree: 0.3}
+    features: pseudobulk_by_class
+  mil_attn:             # donor-level attention MIL over bags of cells
+    kind: bag
+    family: mil
+    params: {hidden: [512, 256], attn_dim: 128, dropout: 0.3, input_dropout: 0.2, bag_size: 256,
+             lr: 0.0005, weight_decay: 0.01, steps: 3000, batch_bags: 16, patience_evals: 6,
+             eval_every: 250, infer_bags: 8}
+benchmark_models: [cell_lr, cell_rf, cell_xgb, cell_mlp, pb_lr, pb_class_lr, pb_class_xgb, mil_attn]
+
+# --------------------------------------------------------------------------------------
+# Controls
+# --------------------------------------------------------------------------------------
+controls:
+  covariate_features: [age, sex, cohort]
+  leaky_model: cell_lr
+  permutation_model: pb_lr
+  permutation_reps: 200
+
+# --------------------------------------------------------------------------------------
+# Aim 2
+# --------------------------------------------------------------------------------------
+aim2:
+  models: [cell_lr, cell_mlp, cell_xgb]
+  matched_cells_per_donor: 50               # identical donors AND cells/donor in every class. 50 keeps 22 PD / 24 DLB donors
+                                            # (100 would leave only 16 / 20; microglia are the limiting class)
+  downsample_curve: [10, 25, 50]
+  transfer_model: cell_lr
+  transfer_pairs: all                       # train disease X vs Control, test disease Y vs Control
+
+importance:
+  model: cell_lr
+  top_k: 100
+  shap_model: cell_xgb
+  shap_cells: 5000
+
+de:
+  min_donors_per_group: 8
+  covariates: [age, sex, cohort]
+  padj: 0.05
+  gene_sets: [GO_Biological_Process_2023, KEGG_2021_Human, Reactome_2022]
+
+scaling:
+  model: cell_mlp                           # also run for mil_attn via --model
+  hidden_grid: [[64], [128], [256], [512, 256], [1024, 512], [2048, 1024, 512]]
+  gene_grid: [500, 1000, 2000, 5000]
+  cells_per_donor_grid: [25, 50, 100, 200]
+  tolerance: 0.01                           # "scaled down" = smallest config within 1 pt macro-F1 of the best
+
+compute:
+  device: auto                              # auto | cpu | cuda | mps
+  n_jobs: -1

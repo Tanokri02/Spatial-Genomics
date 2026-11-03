@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "psychad-ml"
+version = "0.1.0"
+description = "Donor-aware disease classification from PsychAD snRNA-seq (AD / PD / DLB / Control)"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "pandas>=2.1",
+  "pyarrow>=14",
+  "scikit-learn>=1.4",
+  "anndata>=0.10",
+  "pyyaml>=6",
+  "matplotlib>=3.8",
+  "seaborn>=0.13",
+  "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+census = ["cellxgene-census>=1.15"]
+torch = ["torch>=2.2"]
+xgb = ["xgboost>=2.0"]
+interp = ["shap>=0.45"]
+de = ["pydeseq2>=0.4", "gseapy>=1.1"]
+dev = ["pytest>=8", "ruff>=0.5"]
+all = ["psychad-ml[census,torch,xgb,interp,de,dev]"]
+
+[project.scripts]
+psychad = "psychad_ml.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::FutureWarning", "ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 110
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+ignore = ["RUF059", "C408", "RUF046", "PLR0124", "EXE001"]
