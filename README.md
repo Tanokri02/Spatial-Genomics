@@ -11,8 +11,9 @@ See `Project Proposal.docx` (aims), `PLAN.md` (original plan) and `docs/` (verif
 
 All scripts are written and tested **on synthetic data** (28 unit tests + an end-to-end smoke test of every stage,
 ~40 s). The real-data path is verified up to metadata (`psychad inspect` ran on the live Census) and expression
-reads (contiguous windows from Census returned raw counts at ~750 cells/s). **The full real build and all model
-training have not been run yet.** GPU/MPS code paths for the torch models are untested (CPU only).
+reads (contiguous windows from Census returned raw counts at ~750 cells/s). **The full real build has been run**
+(Census 2025-11-08; ~5.3 h on a Mac; see [Data](#data-dataderivedfull) below). **No models have been trained yet.**
+GPU/MPS code paths for the torch models are untested (CPU only).
 
 ## Quick start
 
@@ -21,12 +22,65 @@ conda env create -f environment.yml && conda activate psychad      # or: pip ins
 make test                  # unit tests
 make smoke                 # every stage end-to-end on synthetic data, offline
 psychad --profile dev inspect      # audit cohorts/labels/cell types from the live CELLxGENE Census (metadata only)
-psychad build                      # ~2 h; resumable; writes data/derived/full/
+psychad build                      # ~2-5 h (5.3 h for the full run); resumable; writes data/derived/full/
 bash scripts/run_all.sh            # the whole pipeline in order (PSYCHAD_PROFILE=dev for a fast pass)
 ```
 
 Every command is `psychad [--profile dev] <command>`; `psychad --help` lists them. Outputs go to
 `results/<run_name>/` (CSV/parquet/PNG); nothing in `data/` or `results/` is tracked by git.
+
+## Data (`data/derived/full/`)
+
+Output of `psychad build` (seed 0, CELLxGENE Census 2025-11-08, cohorts MSSM + RADC). Not tracked by git (1.8 GB);
+share it out-of-band or rebuild with `psychad build`.
+
+| File | Contents |
+|---|---|
+| `cells_{EN,IN,Astro,Micro,Oligo,OPC}.h5ad` | single-cell **raw integer counts** (float32), 5,000 genes; obs = donor_id, cell_class, cell_type, cohort, total_counts. No label column: join to `donors.csv` on `donor_id` |
+| `pseudobulk.h5ad` | 3,731 donor x cell-class profiles of summed counts; obs = donor_id, cell_class, n_cells, label, age, sex, cohort |
+| `donors.csv` | all 1,194 donors with label, age, sex, cohort, `keep`, `exclude_reason`, per-class cell counts |
+| `selection.parquet` | the 899,307 selected cells (donor, class, cell type, cohort, total counts) |
+| `gene_panel.csv` | 5,000 label-free HVGs (protein-coding; MT/ribo/MALAT1/NEAT1/sex-linked genes removed) |
+| `build_config.json` | exact config used |
+
+Raw counts are stored; normalization (`target_sum=10000`, log1p) is done downstream.
+
+### Data statistics
+
+Census holds 4,834,135 cells from 1,194 donors in MSSM + RADC. After donor filters, **635 donors** and
+**899,307 cells** remain (cap: 300 cells per donor per cell class; ages top-coded at 90).
+
+**Donors by label** (kept donors only)
+
+| Label | Donors | MSSM | RADC | Female / Male | Mean age (range) | Cells (all classes) |
+|---|---|---|---|---|---|---|
+| AD | 356 | 315 | 41 | 227 / 129 | 83.5 (60-90) | 498,370 |
+| Control | 217 | 191 | 26 | 117 / 100 | 78.6 (60-90) | 313,538 |
+| DLB | 33 | 33 | 0 | 16 / 17 | 80.1 (64-90) | 47,645 |
+| PD | 29 | 26 | 3 | 15 / 14 | 81.2 (65-90) | 40,751 |
+
+**Cells by class**
+
+| Class | Cells | Donors with cells |
+|---|---|---|
+| Oligo | 181,331 | 631 |
+| Astro | 166,872 | 630 |
+| EN | 163,717 | 616 |
+| IN | 159,236 | 616 |
+| OPC | 117,276 | 626 |
+| Micro | 110,875 | 612 |
+
+**Pseudobulk profiles** (3,731 total; median 300 cells per profile, min 20): AD 2,087, Control 1,280, DLB 194, PD 170.
+
+**Excluded donors (559 of 1,194):** other diagnosis 336, age < 60 73, comorbid AD+DLB 72, unspecified dementia 60,
+too few cells 9, comorbid AD+PD 7, AD+DLB+PD 2.
+
+**Caveats for modeling**
+- DLB (33) and PD (29) are small next to AD (356): use donor-level stratified splits and macro metrics.
+- Cohort confound: DLB is 100% MSSM and PD ~90% MSSM, so cohort can masquerade as disease signal.
+- Age/sex confound: Controls are younger than AD (78.6 vs 83.5) and AD is skewed female. Age and sex are in the
+  pseudobulk `obs` for use as covariates.
+- 81 AD+DLB/PD comorbid donors are dropped, so DLB and PD labels are pure cases only.
 
 ## Pipeline
 
@@ -52,7 +106,7 @@ Interrupted jobs (Colab timeout, SLURM wall-time) resume by re-running the same 
 
 `bash scripts/run_all.sh` runs it in stages; each stage is resumable.
 
-1. **Data (CPU, ~2 h):** `inspect` (read the tables) -> `build` -> `eda` -> `splits`.
+1. **Data (CPU, ~2-5 h; `build` is done for `full`):** `inspect` (read the tables) -> `build` -> `eda` -> `splits`.
 2. **CPU models + controls:** LR, pseudobulk LR/XGB, RF, XGBoost, covariate/prior baselines, leaky split,
    permutation, Aim 2 with LR, transfer, importance, DE. `bash scripts/run_all.sh`
 3. **Checkpoint:** do the models beat the covariate baseline and the permutation null? If not, stop and discuss.
