@@ -1,0 +1,5 @@
+,pred_Control,pred_AD,pred_PD,pred_DLB
+true_Control,120,58,16,23
+true_AD,76,219,23,38
+true_PD,12,14,0,3
+true_DLB,11,11,4,7
