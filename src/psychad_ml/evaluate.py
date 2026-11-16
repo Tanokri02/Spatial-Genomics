@@ -99,8 +99,9 @@ def summarize_preds(preds: pd.DataFrame, classes: list[str], reps: int = 1000, s
     """One row per (model, level). `preds` has donor-level rows with columns
     model, seed, fold, donor_id, y_true, p_<class>.
 
-    Per-seed metrics pool out-of-fold donors; we report mean/sd over seeds, and a donor-bootstrap CI
-    computed on the seed-averaged probabilities.
+    Point estimates and the donor-bootstrap CI are both computed on the seed-averaged probabilities (one prediction
+    per donor), so the estimate always lies inside its CI. The per-seed mean and sd are kept as `<metric>_seedmean`
+    and `<metric>_sd` (seed-to-seed variability of the CV itself).
     """
     rows = []
     for model, d in preds.groupby("model"):
@@ -109,9 +110,10 @@ def summarize_preds(preds: pd.DataFrame, classes: list[str], reps: int = 1000, s
         avg = (d.groupby(["donor_id", "y_true"], as_index=False)[prob_cols(classes)].mean())
         ci = bootstrap_ci(avg, classes, reps=reps, seed=seed)
         row = {"model": model, "n_donors": avg.shape[0], "n_seeds": len(per_seed)}
-        for m in ps.columns:
-            row[m] = ps[m].mean()
-            if m in ("macro_f1", "balanced_accuracy", "macro_auroc", "accuracy"):
+        row.update(donor_metrics(avg, classes))
+        for m in ("macro_f1", "balanced_accuracy", "macro_auroc", "accuracy"):
+            if m in ps.columns:
+                row[m + "_seedmean"] = ps[m].mean()
                 row[m + "_sd"] = ps[m].std(ddof=0)
         for m, (lo, hi) in ci.items():
             row[m + "_ci_lo"], row[m + "_ci_hi"] = lo, hi

@@ -19,13 +19,23 @@ def prepare(ctx: Ctx, task: str, **load_kw):
     return cd, folds
 
 
+def representation(spec: dict) -> str:
+    """Which cell-level data a model reads: 'genes' (log-normalised panel) or 'scvi' (latent from `psychad embed`)."""
+    return spec.get("data", "genes")
+
+
 def run_benchmark(ctx: Ctx, task: str | None = None, models: list[str] | None = None, seeds: list[int] | None = None) -> pd.DataFrame:
     task = task or ctx.cfg["default_task"]
     models = models or ctx.cfg["benchmark_models"]
-    cd, folds = prepare(ctx, task)
     out = ctx.paths.out("aim1", task)
+    by_rep: dict[str, list[str]] = {}
     for m in models:
-        run_cv(ctx, cd, folds, m, out, seeds=seeds)
+        by_rep.setdefault(representation(ctx.cfg["models"][m]), []).append(m)
+    for rep, ms in by_rep.items():   # load each representation once; folds are shared (same donors)
+        cd, folds = prepare(ctx, task, representation=rep)
+        for m in ms:
+            run_cv(ctx, cd, folds, m, out, seeds=seeds)
+        del cd
     return summarize(ctx, task)
 
 

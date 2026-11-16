@@ -58,7 +58,8 @@ def run_covariate_baselines(ctx: Ctx, task: str | None = None) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------------------------------
-def run_leaky_comparison(ctx: Ctx, task: str | None = None, model_name: str | None = None) -> pd.DataFrame:
+def run_leaky_comparison(ctx: Ctx, task: str | None = None, model_name: str | None = None,
+                         seeds: list[int] | None = None) -> pd.DataFrame:
     """Same model, same train-cell budget; random cell folds (leaky) vs donor folds (honest)."""
     task = task or ctx.cfg["default_task"]
     model_name = model_name or ctx.cfg["controls"]["leaky_model"]
@@ -68,7 +69,7 @@ def run_leaky_comparison(ctx: Ctx, task: str | None = None, model_name: str | No
     K = len(cd.classes)
     cap = ctx.cfg["cv"]["train_cells_per_donor_class"]
     rows = []
-    for seed in sorted(folds["seed"].unique()):
+    for seed in (seeds if seeds else sorted(folds["seed"].unique())):
         cell_fold = cell_leaky_folds(cd.obs["y"].values, ctx.cfg["cv"]["n_splits"], seed)
         P = np.zeros((cd.n_cells, K))
         for f in range(ctx.cfg["cv"]["n_splits"]):
@@ -92,12 +93,14 @@ def run_leaky_comparison(ctx: Ctx, task: str | None = None, model_name: str | No
     # honest donor-split counterpart (cell-level metrics are stored per fold in the Aim 1 json files)
     from .cv import read_meta, run_cv
     aim1 = ctx.paths.out("aim1", task)
-    run_cv(ctx, cd, folds, model_name, aim1)
+    run_cv(ctx, cd, folds, model_name, aim1, seeds=seeds)
     meta = read_meta(aim1)
-    meta = meta[meta["model"] == model_name]
+    meta = meta[(meta["model"] == model_name) & (meta["seed"].isin(seeds) if seeds else True)]
     honest = meta.groupby("seed")[[c for c in meta.columns if c.startswith("cell_")]].mean().reset_index()
     honest["split"] = "donor_split"
     preds = read_preds(aim1, [model_name])
+    if seeds:
+        preds = preds[preds["seed"].isin(seeds)]
     for seed, d in preds.groupby("seed"):
         m = donor_metrics(d, cd.classes)
         for k, v in m.items():

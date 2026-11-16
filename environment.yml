@@ -3,5 +3,6 @@ channels: [conda-forge, pytorch]
 dependencies:
   - python=3.11
   - pip
+  - llvm-openmp        # provides libomp.dylib: XGBoost fails to load on macOS without it (also: `brew install libomp`)
   - pip:
       - -e .[all]

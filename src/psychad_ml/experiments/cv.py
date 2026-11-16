@@ -5,6 +5,9 @@ weighting, donor aggregation and on-disk formats:
 
     <out_dir>/preds/<tag>__s<seed>_f<fold>.parquet   donor-level probabilities for the held-out donors
     <out_dir>/preds/<tag>__s<seed>_f<fold>.json      n_params, timings, cell-level metrics
+    <out_dir>/preds/<tag>+bias__s<seed>_f<fold>.parquet   only for specs with `decision: {tune: true}`: the same
+                                                          predictions after the rare-class decision rule (tuned on
+                                                          training donors only; see models/decision.py)
 """
 from __future__ import annotations
 
@@ -18,8 +21,17 @@ import pandas as pd
 
 from ..config import Paths, resolve_device
 from ..evaluate import aggregate_donor, cell_level_metrics, prob_cols
-from ..features import CellData, cap_per_group, donor_labels, pseudobulk
+from ..features import (
+    CellData,
+    cap_per_group,
+    donor_feature_matrix,
+    donor_labels,
+    pseudobulk,
+    read_composition,
+)
 from ..models import build_model, make_sample_weights
+from ..models.decision import apply_bias, inner_oof_proba, tune_bias
+from ..models.transforms import InputTransform
 from ..splits import check_no_donor_overlap
 
 
@@ -48,6 +60,14 @@ def _pb(cd: CellData, features: str) -> pd.DataFrame:
     return cache[features]
 
 
+def _donor_features(ctx: Ctx, cd: CellData, spec: dict) -> pd.DataFrame:
+    if isinstance(spec["features"], str) and spec["features"] in ("pseudobulk_all", "pseudobulk_by_class") \
+            and not spec.get("gene_filter"):
+        return _pb(cd, spec["features"])                       # original path (cached results stay reproducible)
+    comp = ctx.__dict__.setdefault("_composition", read_composition(ctx.paths))
+    return donor_feature_matrix(cd, spec, comp)
+
+
 def _class_onehot(cd: CellData) -> np.ndarray:
     return pd.get_dummies(pd.Categorical(cd.obs["cell_class"], categories=cd.cell_classes)).values.astype(np.float32)
 
@@ -60,8 +80,11 @@ def _donor_df(ids, proba, y_names: dict, classes: list[str]) -> pd.DataFrame:
 
 
 def fit_predict_fold(ctx: Ctx, cd: CellData, spec: dict, train_donors: list, test_donors: list, seed: int,
-                     train_cap: int | None, save_cell_metrics: bool = True) -> tuple[pd.DataFrame, dict]:
-    """Train on train_donors, predict test_donors. Returns (donor-level predictions, meta)."""
+                     train_cap: int | None, save_cell_metrics: bool = True):
+    """Train on train_donors, predict test_donors.
+
+    Returns (donor-level predictions, meta, decision-rule-adjusted predictions or None).
+    """
     check_no_donor_overlap(train_donors, test_donors)
     classes, K = cd.classes, len(cd.classes)
     dlab = donor_labels(cd)
@@ -71,11 +94,24 @@ def fit_predict_fold(ctx: Ctx, cd: CellData, spec: dict, train_donors: list, tes
     meta: dict = {"kind": kind}
     model = build_model(spec, K, seed=seed, device=ctx.device, n_jobs=ctx.n_jobs)
 
+    tune = bool((spec.get("decision") or {}).get("tune"))
+    bias = None
     if kind == "donor":
-        pb = _pb(cd, spec["features"])
+        pb = _donor_features(ctx, cd, spec)
         tr = [d for d in train_donors if d in pb.index]
         te = [d for d in test_donors if d in pb.index]
-        model.fit(pb.loc[tr].values, dlab.loc[tr].values)
+        if hasattr(model, "set_feature_names"):
+            model.set_feature_names(pb.columns)
+        Xtr, ytr = pb.loc[tr].values, dlab.loc[tr].values
+        if tune:   # inner CV on the TRAINING donors -> out-of-fold probabilities -> per-class offsets
+            def make():
+                m = build_model(spec, K, seed=seed, device=ctx.device, n_jobs=ctx.n_jobs)
+                if hasattr(m, "set_feature_names"):
+                    m.set_feature_names(pb.columns)
+                return m
+            P_in = inner_oof_proba(make, Xtr, ytr, spec["decision"].get("inner_folds", 3), seed)
+            bias = tune_bias(P_in, ytr) if P_in is not None else None
+        model.fit(Xtr, ytr)
         proba = model.predict_proba(pb.loc[te].values)
         meta["n_features"] = pb.shape[1]
         meta["n_train_donors"] = len(tr)
@@ -89,9 +125,16 @@ def fit_predict_fold(ctx: Ctx, cd: CellData, spec: dict, train_donors: list, tes
         g_tr = cd.obs["donor_id"].values[tr_idx]
         y_tr = cd.obs["y"].values[tr_idx]
         meta["n_train_cells"], meta["n_features"] = len(tr_idx), int(cd.X.shape[1])
+        # optional input transform (PCA / gene subset / standardize), fitted on this fold's TRAINING cells only
+        if spec.get("input"):
+            tf = InputTransform(spec["input"], seed=seed).fit(cd.X[tr_idx])
+            X_tr, X_te = tf.transform(cd.X[tr_idx]), tf.transform(cd.X[te_idx])
+            meta["n_inputs"] = int(X_tr.shape[1])
+        else:
+            X_tr, X_te = cd.X[tr_idx], cd.X[te_idx]
         if kind == "cell":
-            model.fit(cd.X[tr_idx], y_tr, make_sample_weights(y_tr, g_tr), g_tr)
-            cell_p = model.predict_proba(cd.X[te_idx])
+            model.fit(X_tr, y_tr, make_sample_weights(y_tr, g_tr), g_tr)
+            cell_p = model.predict_proba(X_te)
             donor_p = aggregate_donor(cell_p, cd.obs["donor_id"].values[te_idx], ctx.cfg["cv"]["donor_aggregation"])
             proba, ids = donor_p.values, list(donor_p.index)
             if save_cell_metrics:
@@ -99,15 +142,31 @@ def fit_predict_fold(ctx: Ctx, cd: CellData, spec: dict, train_donors: list, tes
         elif kind == "bag":
             extra = _class_onehot(cd)
             tr_labels = dlab.loc[sorted(set(g_tr))]
-            model.fit(cd.X[tr_idx], g_tr, tr_labels, extra=extra[tr_idx])
-            donor_p = model.predict_donor_proba(cd.X[te_idx], cd.obs["donor_id"].values[te_idx], extra=extra[te_idx])
+            model.fit(X_tr, g_tr, tr_labels, extra=extra[tr_idx])
+            donor_p = model.predict_donor_proba(X_te, cd.obs["donor_id"].values[te_idx], extra=extra[te_idx])
             proba, ids = donor_p.values, list(donor_p.index)
         else:
             raise ValueError(kind)
+        if tune:   # neural nets: tune on the validation donors (training donors held out from fitting)
+            vp, vy = getattr(model, "val_proba_", None), getattr(model, "val_y_", None)
+            if vp is not None and len(vy):
+                bias = tune_bias(vp, vy)
+            else:
+                raise ValueError("decision.tune needs a model that reports validation-donor probabilities")
+    for attr, key in (("best_val_loss_", "best_val_loss"), ("best_epoch_", "best_epoch"), ("epochs_run_", "epochs_run")):
+        v = getattr(model, attr, None)       # neural nets only: lets you tell "no signal" from "training stopped at once"
+        if v is not None and np.isfinite(v):
+            meta[key] = float(v) if key == "best_val_loss" else int(v)
+    meta.update({k: v for k, v in getattr(model, "train_info_", {}).items() if v is None or np.isfinite(v)})
     meta["n_params"] = int(getattr(model, "n_params", 0) or (
         np.size(model.coef()) if hasattr(model, "coef") and model.coef() is not None else 0))
     meta["fit_predict_seconds"] = round(time.time() - t0, 1)
-    return _donor_df(ids, proba, y_names, classes), meta
+    adj = None
+    if tune:
+        bias = np.zeros(K) if bias is None else bias
+        meta["decision_bias"] = [round(float(b), 3) for b in bias]
+        adj = _donor_df(ids, apply_bias(np.asarray(proba), bias), y_names, classes)
+    return _donor_df(ids, proba, y_names, classes), meta, adj
 
 
 def run_cv(ctx: Ctx, cd: CellData, folds: pd.DataFrame, model_name: str, out_dir: Path, tag: str | None = None,
@@ -132,7 +191,10 @@ def run_cv(ctx: Ctx, cd: CellData, folds: pd.DataFrame, model_name: str, out_dir
             te = list(f_s.loc[f_s["fold"] == fold, "donor_id"])
             tr = list(f_s.loc[f_s["fold"] != fold, "donor_id"])
             ctx.log(f"{tag} seed={seed} fold={fold}  train_donors={len(tr)} test_donors={len(te)}")
-            df, meta = fit_predict_fold(ctx, cd, spec, tr, te, seed, train_cap, save_cell_metrics)
+            df, meta, adj = fit_predict_fold(ctx, cd, spec, tr, te, seed, train_cap, save_cell_metrics)
+            if adj is not None:   # written first: the main file marks the fold as done
+                adj.insert(0, "fold", fold), adj.insert(0, "seed", seed), adj.insert(0, "model", f"{tag}+bias")
+                adj.to_parquet(pdir / f"{tag}+bias__s{seed}_f{fold}.parquet")
             df.insert(0, "fold", fold)
             df.insert(0, "seed", seed)
             df.insert(0, "model", tag)

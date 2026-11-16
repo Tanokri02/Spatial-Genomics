@@ -159,7 +159,136 @@ models:
     params: {hidden: [512, 256], attn_dim: 128, dropout: 0.3, input_dropout: 0.2, bag_size: 256,
              lr: 0.0005, weight_decay: 0.01, steps: 3000, batch_bags: 16, patience_evals: 6,
              eval_every: 250, infer_bags: 8}
+  # ------------------------------------------------------------------------------------
+  # Round 2 (16 Nov 2026), after round 1 showed: (a) cell_mlp / mil_attn picked their FIRST checkpoint in every
+  # fold with validation loss at chance (2.7M parameters vs ~430 training donors -> they memorise donors),
+  # (b) accuracy is flat from 25 to 50 cells/donor (donors, not cells, are the bottleneck), (c) the best models never
+  # predict PD/DLB. None of these settings were chosen by looking at test-fold scores; they follow from (a)-(c).
+  # The original models above are unchanged so their cached results stay reproducible.
+  #
+  # Shared knobs:  input: in-fold transform of the cell input (models/transforms.py)
+  #                decision: {tune: true} also writes '<model>+bias' predictions with per-class offsets tuned on
+  #                training donors only (models/decision.py)
+  #                data: scvi -> cells are represented by the scVI latent (`psychad embed` first)
+  # ------------------------------------------------------------------------------------
+  # Deep models, small (A1) with fixed training (A2) and ensembles (A5)
+  mlp_small:            # PCA-64 input (fit on training cells), one hidden layer: ~9k params instead of 2.7M
+    kind: cell
+    family: mlp
+    input: {type: pca, n_components: 64, fit_cells: 60000}
+    params: {hidden: [128], dropout: 0.5, input_dropout: 0.1, lr: 0.0003, weight_decay: 0.05, schedule: constant,
+             epochs: 15, batch_size: 512, eval_every_steps: 100, patience: 10, val_metric: donor_auroc,
+             val_frac: 0.2, n_ensemble: 5}
+    decision: {tune: true}
+  mil_small:            # cell-class-aware attention MIL (A4) on the same PCA input
+    kind: bag
+    family: mil
+    input: {type: pca, n_components: 64, fit_cells: 60000}
+    params: {hidden: [64], attn_dim: 32, pooling: per_class, cells_per_class: 32, dropout: 0.3, input_dropout: 0.1,
+             lr: 0.0003, weight_decay: 0.05, schedule: constant, steps: 3000, batch_bags: 16, eval_every: 50,
+             patience_evals: 15, val_metric: donor_auroc, val_frac: 0.2, val_bags: 4, infer_bags: 16,
+             n_ensemble: 5}
+    decision: {tune: true}
+  # scVI latent (A3): run `psychad embed` first
+  mlp_scvi:
+    kind: cell
+    family: mlp
+    data: scvi
+    input: {type: standardize}
+    params: {hidden: [64], dropout: 0.3, input_dropout: 0.0, lr: 0.0003, weight_decay: 0.05, schedule: constant,
+             epochs: 15, batch_size: 512, eval_every_steps: 100, patience: 10, val_metric: donor_auroc,
+             val_frac: 0.2, n_ensemble: 5}
+    decision: {tune: true}
+  mil_scvi:
+    kind: bag
+    family: mil
+    data: scvi
+    input: {type: standardize}
+    params: {hidden: [64], attn_dim: 32, pooling: per_class, cells_per_class: 32, dropout: 0.3, input_dropout: 0.0,
+             lr: 0.0003, weight_decay: 0.05, schedule: constant, steps: 3000, batch_bags: 16, eval_every: 50,
+             patience_evals: 15, val_metric: donor_auroc, val_frac: 0.2, val_bags: 4, infer_bags: 16,
+             n_ensemble: 5}
+    decision: {tune: true}
+  pb_scvi_lr:           # mean scVI latent per donor x cell class (6 x 30 features) + LR
+    kind: donor
+    family: logreg
+    data: scvi
+    features: pseudobulk_by_class
+    params: {Cs: [0.0001, 0.001, 0.01, 0.1, 1.0], max_iter: 2000}
+    decision: {tune: true}
+  # Pseudobulk / linear (B1-B4). gene_filter = label-free: genes detected in >= 5% of the cells of some class
+  pb_class_lr_dt:       # = pb_class_lr + the rare-class decision rule (D1), to isolate its effect
+    kind: donor
+    family: logreg
+    features: pseudobulk_by_class
+    params: {Cs: [0.0001, 0.001, 0.01, 0.1, 1.0], max_iter: 1000}
+    decision: {tune: true}
+  pb_class_lr_filt:     # B3: drop rarely detected genes (olfactory receptors, CPA1, ...)
+    kind: donor
+    family: logreg
+    features: pseudobulk_by_class
+    gene_filter: {min_frac: 0.05}
+    params: {Cs: [0.0001, 0.001, 0.01, 0.1, 1.0], max_iter: 1000}
+    decision: {tune: true}
+  pb_comp_lr:           # B1 alone: does cell-type COMPOSITION carry signal? (class fractions + subtype fractions)
+    kind: donor
+    family: logreg
+    features: composition
+    params: {Cs: [0.001, 0.01, 0.1, 1.0, 10.0], max_iter: 2000}
+    decision: {tune: true}
+  pb_class_comp_lr:     # B1: expression + composition
+    kind: donor
+    family: logreg
+    features: [pseudobulk_by_class, composition]
+    gene_filter: {min_frac: 0.05}
+    params: {Cs: [0.0001, 0.001, 0.01, 0.1, 1.0], max_iter: 1000}
+    decision: {tune: true}
+  pb_subtype_lr:        # B2: pseudobulk per fine subtype (L2/3 IT, L6 CT, PVALB, SST, VIP, LAMP5, ...)
+    kind: donor
+    family: logreg
+    features: pseudobulk_by_subtype
+    gene_filter: {min_frac: 0.05, n_genes: 2000}
+    subtype_min_cells: 10
+    params: {Cs: [0.0001, 0.001, 0.01, 0.1, 1.0], max_iter: 1000}
+    decision: {tune: true}
+  pb_class_pca_lr:      # B4: 20 PCs per cell-class block (fit on training donors), then LR: 120 features
+    kind: donor
+    family: logreg
+    features: [pseudobulk_by_class, composition]
+    gene_filter: {min_frac: 0.05}
+    params: {block_pca: 20, Cs: [0.001, 0.01, 0.1, 1.0, 10.0], max_iter: 2000}
+    decision: {tune: true}
+  pb_class_enet:        # B4: ANOVA top-3000 features (training donors), then elastic net with C, l1_ratio by inner CV
+    kind: donor
+    family: logreg
+    features: [pseudobulk_by_class, composition]
+    gene_filter: {min_frac: 0.05}
+    params: {select_k: 3000, Cs: [0.01, 0.1, 1.0], l1_ratios: [0.5, 0.9], max_iter: 2000}
+    decision: {tune: true}
+
 benchmark_models: [cell_lr, cell_rf, cell_xgb, cell_mlp, pb_lr, pb_class_lr, pb_class_xgb, mil_attn]
+round2_models:                       # what `scripts/overnight.sh` trains in the round-2 steps
+  pb: [pb_class_lr_dt, pb_class_lr_filt, pb_comp_lr, pb_class_comp_lr, pb_subtype_lr, pb_class_pca_lr, pb_class_enet]
+  nn: [mlp_small, mil_small]
+  scvi: [pb_scvi_lr, mlp_scvi, mil_scvi]
+
+embed:
+  scvi:
+    n_latent: 30
+    n_hidden: 128
+    n_layers: 2
+    gene_likelihood: nb
+    batch_key: cohort                # nuisance factor; NEVER donor_id (that would remove disease signal). null = none
+    train_cells_per_donor_class: 50  # ~190k training cells (memory); every stored cell is then encoded
+    max_epochs: 60
+    batch_size: 1024
+    early_stopping_patience: 5
+    accelerator: auto                # cuda if available, else cpu (scvi-tools' MPS support is incomplete)
+    encode_chunk: 50000
+
+cohort_transfer:                     # train on MSSM -> test on RADC and vice versa
+  tasks: [ad_vs_control]             # PD/DLB are (almost) MSSM-only, so only AD vs Control can be checked
+  models: [cov_lr, pb_lr, pb_class_lr, pb_class_lr_filt, pb_class_comp_lr, pb_class_pca_lr]
 
 # --------------------------------------------------------------------------------------
 # Controls
@@ -199,6 +328,19 @@ scaling:
   gene_grid: [500, 1000, 2000, 5000]
   cells_per_donor_grid: [25, 50, 100, 200]
   tolerance: 0.01                           # "scaled down" = smallest config within 1 pt macro-F1 of the best
+  grids:                                    # per-model grids (override the ones above); small models ablate cheaply
+    mlp_small:
+      sweeps: [arch, pcs, cells]
+      hidden_grid: [[16], [32], [64], [128], [256], [128, 64]]
+      pcs_grid: [16, 32, 64, 128, 256]
+      cells_per_donor_grid: [25, 50, 100]
+      n_ensemble: 1                         # ablations rank settings; one member each keeps the sweep ~5x cheaper
+    mil_small:
+      sweeps: [arch, pcs, cells]
+      hidden_grid: [[16], [32], [64], [128]]
+      pcs_grid: [16, 32, 64, 128]
+      cells_per_donor_grid: [25, 50, 100]
+      n_ensemble: 1
 
 compute:
   device: auto                              # auto | cpu | cuda | mps

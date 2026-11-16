@@ -1,0 +1,9 @@
+# Applied automatically by scripts/overnight.sh (override with PSYCHAD_CONFIG=...). Compute-only changes, merged on
+# top of default.yaml. Nothing here was chosen by looking at test-fold results.
+#
+# cell_rf: 300 trees took >40 min for ONE fold on the 16 GB M4 (287k training cells x 5000 genes), i.e. >3 h for a
+# 5-fold run. 100 trees is ~3x cheaper and is what the dev profile uses; forest accuracy is flat beyond ~100 trees.
+# Report this in the Methods ("cell_rf: 100 trees").
+models:
+  cell_rf:
+    params: {n_estimators: 100}

@@ -15,7 +15,8 @@ from .benchmark import prepare
 from .cv import Ctx
 
 
-def run_lr_importance(ctx: Ctx, task: str | None = None, cell_classes: list[str] | None = None) -> pd.DataFrame:
+def run_lr_importance(ctx: Ctx, task: str | None = None, cell_classes: list[str] | None = None,
+                      seeds: list[int] | None = None) -> pd.DataFrame:
     task = task or ctx.cfg["default_task"]
     cd, folds = prepare(ctx, task)
     spec = ctx.cfg["models"][ctx.cfg["importance"]["model"]]
@@ -28,7 +29,7 @@ def run_lr_importance(ctx: Ctx, task: str | None = None, cell_classes: list[str]
     for cc in (cell_classes or cd.cell_classes + ["ALL"]):
         sub = cd if cc == "ALL" else cd.subset((cd.obs["cell_class"] == cc).values)
         coefs = []
-        for seed in sorted(folds["seed"].unique()):
+        for seed in (seeds if seeds else sorted(folds["seed"].unique())):
             fs = folds[folds["seed"] == seed].set_index("donor_id")["fold"]
             for fold in sorted(fs.unique()):
                 tr_d = set(fs.index[fs != fold])

@@ -86,15 +86,53 @@ def fig_model_comparison(summary: pd.DataFrame, out: Path, metric: str = "macro_
     fig, ax = plt.subplots(figsize=(6.4, 0.38 * len(s) + 1.2))
     y = np.arange(len(s))
     base = s["model"].str.startswith(("cov_", "prior"))
-    colors = np.where(base, "#8a8a85", CAT[0])
+    colors = np.where(base, "#8a8a85", np.where(s["model"].str.endswith("+bias"), CAT[1], CAT[0]))
     lo, hi = s.get(f"{metric}_ci_lo"), s.get(f"{metric}_ci_hi")
     if lo is not None:
         ax.hlines(y, lo, hi, color=colors, linewidth=1.6)
     ax.scatter(s[metric], y, color=colors, s=42, zorder=3, edgecolor="white", linewidth=1.2)
     ax.set_yticks(y, s["model"]), ax.set_xlabel(f"{metric.replace('_', ' ')} (donor level, 95% bootstrap CI)")
     ax.set_title(title or "Model comparison (gray = covariate / prior baselines)")
+    if s["model"].str.endswith("+bias").any():
+        ax.text(1.0, -0.6 / max(len(s), 1), "orange = with rare-class decision rule (+bias)", transform=ax.transAxes,
+                ha="right", va="top", fontsize=8, color=MUTED)
     ax.grid(axis="y", visible=False)
     return _save(fig, out / f"model_comparison_{metric}.png")
+
+
+def fig_paired(pv: pd.DataFrame, out: Path, metric: str = "macro_f1") -> Path:
+    """Paired donor-bootstrap difference vs the baseline, with 95% CI. Right of 0 = better than the baseline."""
+    _style()
+    d = pv.sort_values(f"{metric}_delta")
+    fig, ax = plt.subplots(figsize=(6.4, 0.36 * len(d) + 1.3))
+    y = np.arange(len(d))
+    sig = (d[f"{metric}_delta_ci_lo"] > 0) & (d[f"{metric}_p_holm"] < 0.05)
+    colors = np.where(sig, CAT[0], "#8a8a85")
+    ax.axvline(0, color=INK, linewidth=1)
+    ax.hlines(y, d[f"{metric}_delta_ci_lo"], d[f"{metric}_delta_ci_hi"], color=colors, linewidth=1.6)
+    ax.scatter(d[f"{metric}_delta"], y, color=colors, s=40, zorder=3, edgecolor="white", linewidth=1.2)
+    ax.set_yticks(y, d["model"])
+    ax.set_xlabel(f"{metric.replace('_', ' ')}: model minus {d['baseline'].iloc[0]} (paired, 95% CI)")
+    ax.set_title("Better than the baseline? (blue = CI above 0 and Holm p < 0.05)")
+    ax.grid(axis="y", visible=False)
+    return _save(fig, out / f"paired_vs_baseline_{metric}.png")
+
+
+def fig_recall(summary: pd.DataFrame, out: Path) -> Path:
+    """Per-class recall of every model: shows which models ever predict the rare classes."""
+    _style()
+    rec = [c for c in summary.columns if c.startswith("recall_")]
+    s = summary.sort_values("macro_f1", ascending=False)
+    M = s[rec].values
+    fig, ax = plt.subplots(figsize=(1.1 * len(rec) + 2.6, 0.32 * len(s) + 1.2))
+    ax.imshow(M, cmap="Blues", vmin=0, vmax=1, aspect="auto")
+    ax.grid(False)
+    ax.set_xticks(range(len(rec)), [c[7:] for c in rec]), ax.set_yticks(range(len(s)), s["model"])
+    for i in range(M.shape[0]):
+        for j in range(M.shape[1]):
+            ax.text(j, i, f"{M[i, j]:.2f}", ha="center", va="center", fontsize=8, color="white" if M[i, j] > 0.6 else INK)
+    ax.set_title("Recall per true class (donors)", fontsize=10)
+    return _save(fig, out / "recall_by_class.png")
 
 
 def fig_confusion(cm: pd.DataFrame, name: str, out: Path) -> Path:
@@ -153,7 +191,9 @@ def fig_celltype(summary: pd.DataFrame, out: Path, metric: str = "macro_f1") -> 
         d = s[s["base_model"] == m].set_index("cell_class").reindex(classes)
         x = np.arange(len(classes)) + (k - (len(models) - 1) / 2) * w
         lo, hi = d.get(f"{metric}_ci_lo"), d.get(f"{metric}_ci_hi")
-        ax.errorbar(x, d[metric], yerr=[d[metric] - lo, hi - d[metric]] if lo is not None else None, fmt="o",
+        # point and CI now come from the same seed-averaged predictions; the clip only guards older summary files
+        yerr = None if lo is None else [np.clip(d[metric] - lo, 0, None), np.clip(hi - d[metric], 0, None)]
+        ax.errorbar(x, d[metric], yerr=yerr, fmt="o",
                     color=CAT[k], capsize=0, linewidth=1.3, markersize=6, markeredgecolor="white", label=m)
     ax.set_xticks(range(len(classes)), classes), ax.set_ylabel(metric.replace("_", " ")), ax.legend(title="model")
     ax.set_title("Disease signal by cell class (matched donors and cells)")
@@ -183,33 +223,43 @@ def fig_transfer(tr: pd.DataFrame, out: Path) -> Path:
         ax.imshow(m.values, cmap="Blues", vmin=0.5, vmax=1.0)
         ax.grid(False)
         ax.set_xticks(range(m.shape[1]), m.columns, fontsize=8), ax.set_yticks(range(m.shape[0]), m.index, fontsize=8)
+        has_ci = "ci_lo" in tr
+        lo = tr[tr["cell_class"] == cc].pivot(index="train_on", columns="test_on", values="ci_lo").reindex_like(m) if has_ci else None
+        hi = tr[tr["cell_class"] == cc].pivot(index="train_on", columns="test_on", values="ci_hi").reindex_like(m) if has_ci else None
         for i in range(m.shape[0]):
             for j in range(m.shape[1]):
                 v = m.values[i, j]
                 if not np.isnan(v):
-                    ax.text(j, i, f"{v:.2f}", ha="center", va="center", fontsize=8, color="white" if v > 0.8 else INK)
+                    col = "white" if v > 0.8 else INK
+                    ax.text(j, i - (0.12 if has_ci else 0), f"{v:.2f}", ha="center", va="center", fontsize=8, color=col)
+                    if has_ci:
+                        ax.text(j, i + 0.22, f"{lo.values[i, j]:.2f}-{hi.values[i, j]:.2f}", ha="center", va="center",
+                                fontsize=5.5, color=col)
         ax.set_title(cc, fontsize=10)
-    fig.supxlabel("test on (disease vs Control)", fontsize=9), fig.supylabel("train on", fontsize=9)
+    fig.supxlabel("test on (disease vs Control); small text = 95% CI", fontsize=9), fig.supylabel("train on", fontsize=9)
     return _save(fig, out / "transfer_matrix.png")
 
 
 # ---------------------------------------------------------------------------------------------- scaling
 def fig_scaling(df: pd.DataFrame, out: Path, name: str = "") -> Path:
     _style()
-    sweeps = ["arch", "genes", "cells"]
-    xlabel = {"arch": "parameters (log)", "genes": "genes in panel", "cells": "training cells per donor x class"}
-    fig, axes = plt.subplots(1, 3, figsize=(10, 3), sharey=True)
+    sweeps = [sw for sw in ["arch", "genes", "pcs", "cells"] if (df["sweep"] == sw).any()]
+    xlabel = {"arch": "parameters (log)", "genes": "genes in panel", "pcs": "PCA components of the input",
+              "cells": "training cells per donor x class"}
+    fig, axes = plt.subplots(1, len(sweeps), figsize=(3.4 * len(sweeps), 3), sharey=True, squeeze=False)
+    axes = axes[0]
     for ax, sw in zip(axes, sweeps):
         d = df[df["sweep"] == sw]
         if d.empty:
             ax.set_visible(False)
             continue
-        x = {"arch": d["n_params"], "genes": d["n_genes"], "cells": d["train_cells_per_donor_class"]}[sw]
+        x = {"arch": d["n_params"], "genes": d["n_genes"], "pcs": d["n_genes"], "cells": d["train_cells_per_donor_class"]}[sw]
         order = np.argsort(x.values)
         ax.plot(x.values[order], d["macro_f1"].values[order], marker="o", color=CAT[0], linewidth=1.8, markersize=5)
         pick = d[d["scaled_down_choice"]]
         if len(pick):
-            px = {"arch": pick["n_params"], "genes": pick["n_genes"], "cells": pick["train_cells_per_donor_class"]}[sw]
+            px = {"arch": pick["n_params"], "genes": pick["n_genes"], "pcs": pick["n_genes"],
+                  "cells": pick["train_cells_per_donor_class"]}[sw]
             ax.scatter(px, pick["macro_f1"], s=90, facecolor="none", edgecolor=CAT[1], linewidth=2, zorder=4)
         if sw == "arch":
             ax.set_xscale("log")
@@ -222,30 +272,46 @@ def fig_scaling(df: pd.DataFrame, out: Path, name: str = "") -> Path:
 # ---------------------------------------------------------------------------------------------- driver
 def make_all_figures(paths, task: str) -> list[Path]:
     """Render every figure for which results exist."""
-    fig_dir = paths.results / "figures"
+    fig_dir = paths.results / "figures"              # shared figures (EDA, transfer)
+    tdir = fig_dir / task                            # per-task figures: figures/<task>/..., so tasks never overwrite each other
     made: list[Path] = []
+
+    def safe(fn, *args, **kw):
+        """Render one figure; on failure print why and carry on (so one bad plot never blocks the rest)."""
+        try:
+            r = fn(*args, **kw)
+            made.extend(r if isinstance(r, list) else [r])
+        except Exception as e:  # noqa: BLE001
+            print(f"[report] skipped {fn.__name__}: {type(e).__name__}: {e}")
     if paths.donors.exists():
-        made += fig_eda(pd.read_csv(paths.donors, index_col="donor_id"), fig_dir)
+        safe(fig_eda, pd.read_csv(paths.donors, index_col="donor_id"), fig_dir)
     a1 = paths.results / "aim1" / task
     if (a1 / "summary.csv").exists():
         s = pd.read_csv(a1 / "summary.csv")
-        made.append(fig_model_comparison(s, fig_dir, "macro_f1", f"Aim 1 ({task}): macro-F1"))
-        made.append(fig_model_comparison(s, fig_dir, "balanced_accuracy", f"Aim 1 ({task}): balanced accuracy"))
+        safe(fig_model_comparison, s, tdir, "macro_f1", f"Aim 1 ({task}): macro-F1")
+        safe(fig_model_comparison, s, tdir, "balanced_accuracy", f"Aim 1 ({task}): balanced accuracy")
+        safe(fig_model_comparison, s, tdir, "macro_auroc", f"Aim 1 ({task}): macro AUROC")
+        safe(fig_recall, s, tdir)
+    if (a1 / "paired_vs_baseline.csv").exists():
+        pv = pd.read_csv(a1 / "paired_vs_baseline.csv")
+        if not pv.empty:
+            safe(fig_paired, pv, tdir, "macro_f1")
+            safe(fig_paired, pv, tdir, "macro_auroc")
         for f in sorted(a1.glob("confusion_*.csv")):
-            made.append(fig_confusion(pd.read_csv(f, index_col=0), f.stem.replace("confusion_", ""), fig_dir / "confusion"))
+            safe(fig_confusion, pd.read_csv(f, index_col=0), f.stem.replace("confusion_", ""), tdir / "confusion")
     c = paths.results / "controls" / task
     if (c / "leaky_vs_donor_split.csv").exists():
-        made.append(fig_leaky(pd.read_csv(c / "leaky_vs_donor_split.csv"), fig_dir))
+        safe(fig_leaky, pd.read_csv(c / "leaky_vs_donor_split.csv"), tdir)
     for f in sorted(c.glob("permutation_*.csv")) if c.exists() else []:
-        made.append(fig_permutation(pd.read_csv(f), f.stem.replace("permutation_", ""), fig_dir))
+        safe(fig_permutation, pd.read_csv(f), f.stem.replace("permutation_", ""), tdir)
     a2 = paths.results / "aim2" / task
     if (a2 / "summary.csv").exists():
-        made.append(fig_celltype(pd.read_csv(a2 / "summary.csv"), fig_dir))
+        safe(fig_celltype, pd.read_csv(a2 / "summary.csv"), tdir)
     if (a2 / "downsample_curve.csv").exists():
-        made.append(fig_downsample(pd.read_csv(a2 / "downsample_curve.csv"), fig_dir))
+        safe(fig_downsample, pd.read_csv(a2 / "downsample_curve.csv"), tdir)
     t = paths.results / "aim2" / "transfer" / "transfer_auroc.csv"
     if t.exists():
-        made.append(fig_transfer(pd.read_csv(t), fig_dir))
+        safe(fig_transfer, pd.read_csv(t), fig_dir)
     for f in sorted((paths.results / "scaling" / task).glob("*/scaling.csv")):
-        made.append(fig_scaling(pd.read_csv(f), fig_dir, f.parent.name))
+        safe(fig_scaling, pd.read_csv(f), tdir, f.parent.name)
     return made

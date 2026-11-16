@@ -26,8 +26,9 @@ torch = ["torch>=2.2"]
 xgb = ["xgboost>=2.0"]
 interp = ["shap>=0.45"]
 de = ["pydeseq2>=0.4", "gseapy>=1.1"]
+scvi = ["scvi-tools>=1.4"]
 dev = ["pytest>=8", "ruff>=0.5"]
-all = ["psychad-ml[census,torch,xgb,interp,de,dev]"]
+all = ["psychad-ml[census,torch,xgb,interp,de,scvi,dev]"]
 
 [project.scripts]
 psychad = "psychad_ml.cli:main"
