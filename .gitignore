@@ -1,6 +1,6 @@
 # data and outputs (large; reproduce with `psychad build`)
-data/
-results/
+/data/
+/results/
 *.h5ad
 *.h5
 *.npz
