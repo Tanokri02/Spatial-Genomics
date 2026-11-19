@@ -1,0 +1,1 @@
+{"kind": "bag", "n_train_cells": 286046, "n_features": 5000, "best_val_loss": 1.22650581526246, "best_epoch": 250, "epochs_run": 1750, "n_params": 2763140, "fit_predict_seconds": 67.6}

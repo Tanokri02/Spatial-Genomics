@@ -4,6 +4,8 @@ Every function reads tables written by the experiments (CSV/parquet) and writes 
 """
 from __future__ import annotations
 
+import os
+
 from pathlib import Path
 
 import matplotlib
@@ -272,7 +274,8 @@ def fig_scaling(df: pd.DataFrame, out: Path, name: str = "") -> Path:
 # ---------------------------------------------------------------------------------------------- driver
 def make_all_figures(paths, task: str) -> list[Path]:
     """Render every figure for which results exist."""
-    fig_dir = paths.results / "figures"              # shared figures (EDA, transfer)
+    # figures/round1 = committed round-1 snapshot (never rewritten); new renders go to figures/<PSYCHAD_FIG_ROUND, default round2>
+    fig_dir = paths.results / "figures" / os.environ.get("PSYCHAD_FIG_ROUND", "round2")
     tdir = fig_dir / task                            # per-task figures: figures/<task>/..., so tasks never overwrite each other
     made: list[Path] = []
 

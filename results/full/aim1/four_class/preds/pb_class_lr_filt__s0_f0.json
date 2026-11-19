@@ -1,0 +1,1 @@
+{"kind": "donor", "n_features": 24558, "n_train_donors": 508, "n_params": 98232, "fit_predict_seconds": 64.0, "decision_bias": [0.0, -1.75, 2.75, 1.75]}

@@ -107,7 +107,7 @@ would cost 15x). The decision rule never sees the test fold.
 |---|---|---|
 | `inspect` | label/cohort/age/cell-type audit from metadata only | `results/<run>/inspect/*.csv` |
 | `build` | donor table + filters, donor-balanced cell selection (≤N cells/donor/class), streaming label-free HVG panel, expression fetch, per-class shards, pseudobulk, true cell-type composition (`--stages composition`, metadata only) | `data/derived/<run>/` |
-| `eda` | donors by label×cohort, age, cells per donor | `figures/eda_*.png` |
+| `eda` | donors by label×cohort, age, cells per donor | `figures/round2/eda_*.png` |
 | `splits` | cached stratified donor folds, shared by everything | `splits/folds_<task>.csv` |
 | `benchmark` | **Aim 1**: LR, RF, XGBoost, MLP (+large), pseudobulk LR/XGB, attention-MIL | `aim1/<task>/summary.csv`, confusion matrices |
 | `controls` | covariate-only + prior baselines, **leaky cell split vs donor split**, label-permutation null | `aim1/` (baselines), `controls/` |
@@ -119,7 +119,7 @@ would cost 15x). The decision rule never sees the test fold.
 | `embed` | label-free scVI latent of every stored cell (trained on a donor-balanced subsample; batch = cohort) | `data/derived/<run>/scvi/` |
 | `cohort-transfer` | train on one cohort, test on the other (AD vs Control) | `cohort_transfer/<task>/` |
 | `compare` | paired donor-bootstrap test of every model vs the best baseline, Holm-corrected | `aim1/<task>/paired_vs_baseline.csv` |
-| `report` | renders every figure for which results exist | `figures/<task>/` |
+| `report` | renders every figure for which results exist | `figures/round2/<task>/` |
 | `summary` | consolidated tables + verdicts vs baselines (reads saved predictions, trains nothing) | `RESULTS_SUMMARY.md` |
 
 Resumability: `build` caches each stage and each read window; every CV run caches each (model, seed, fold).
@@ -157,7 +157,7 @@ embedding) are skipped unless `RERUN_DONE=1`. `cell_mlp_large` and the round-1 n
 Expect roughly 9-11 h for everything; the core table (pseudobulk, cell_xgb, cell_lr, nets), the permutation null, Aim 2 and DE come first (~6-7 h). Steps with a
 tighter time cap (XGBoost, RF, scaling) stop at 3-4 h and keep their finished folds.
 
-`scripts/analyze.sh` is safe on partial results. It renders figures (`results/<run>/figures/<task>/`), writes
+`scripts/analyze.sh` is safe on partial results. It renders figures (`results/<run>/figures/round2/<task>/`; round-1 figures are frozen in `figures/round1/`; set `PSYCHAD_FIG_ROUND` to change the folder), writes
 `results/<run>/RESULTS_SUMMARY.md` (tables, verdicts vs the covariate/prior baselines, controls, Aim 2, scaling, genes)
 and runs `scripts/check_results.py` (each donor predicted once per seed, probabilities valid, folds partition donors).
 

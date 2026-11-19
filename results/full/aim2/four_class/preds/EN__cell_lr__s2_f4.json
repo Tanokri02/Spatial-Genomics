@@ -1,0 +1,1 @@
+{"kind": "cell", "n_train_cells": 20650, "n_features": 5000, "cell_accuracy": 0.48310679611650487, "cell_balanced_accuracy": 0.3125219298245614, "cell_macro_f1": 0.3061107406407692, "cell_macro_auroc": 0.5993087543291962, "cell_log_loss": 1.4471200704574585, "n_params": 20000, "fit_predict_seconds": 30.8}

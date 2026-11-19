@@ -8,6 +8,12 @@ Expected folds per model = n_splits x n_seeds = 15.
 
 | task | model | folds_done | status |
 |---|---|---|---|
+| ad_vs_control | prior | 15/15 | done |
+| ad_vs_control | cov_lr | 15/15 | done |
+| ad_vs_control | cov_rf | 15/15 | done |
+| dlb_vs_control | prior | 15/15 | done |
+| dlb_vs_control | cov_lr | 15/15 | done |
+| dlb_vs_control | cov_rf | 15/15 | done |
 | four_class | cell_lr | 5/15 | done (1 seed(s) only) |
 | four_class | cell_rf | 0/15 | MISSING |
 | four_class | cell_xgb | 5/15 | done (1 seed(s) only) |
@@ -20,12 +26,39 @@ Expected folds per model = n_splits x n_seeds = 15.
 | four_class | prior | 15/15 | done |
 | four_class | cov_lr | 15/15 | done |
 | four_class | cov_rf | 15/15 | done |
+| four_class | pb_class_lr_dt | 15/15 | done |
+| four_class | pb_class_lr_filt | 15/15 | done |
+| four_class | pb_comp_lr | 15/15 | done |
+| four_class | pb_class_comp_lr | 15/15 | done |
+| four_class | pb_subtype_lr | 15/15 | done |
+| four_class | pb_class_pca_lr | 15/15 | done |
+| four_class | pb_class_enet | 15/15 | done |
+| four_class | mlp_small | 15/15 | done |
+| four_class | mil_small | 15/15 | done |
+| four_class | pb_scvi_lr | 15/15 | done |
+| four_class | mlp_scvi | 15/15 | done |
+| four_class | mil_scvi | 15/15 | done |
 | lbd_group | cell_lr | 5/15 | done (1 seed(s) only) |
 | lbd_group | cell_mlp | 15/15 | done |
 | lbd_group | pb_lr | 15/15 | done |
 | lbd_group | pb_class_lr | 15/15 | done |
 | lbd_group | pb_class_xgb | 15/15 | done |
 | lbd_group | mil_attn | 15/15 | done |
+| lbd_group | prior | 15/15 | done |
+| lbd_group | cov_lr | 15/15 | done |
+| lbd_group | cov_rf | 15/15 | done |
+| lbd_group | pb_class_lr_dt | 15/15 | done |
+| lbd_group | pb_class_lr_filt | 15/15 | done |
+| lbd_group | pb_comp_lr | 15/15 | done |
+| lbd_group | pb_class_comp_lr | 15/15 | done |
+| lbd_group | pb_subtype_lr | 15/15 | done |
+| lbd_group | pb_class_pca_lr | 15/15 | done |
+| lbd_group | pb_class_enet | 15/15 | done |
+| lbd_group | mlp_small | 15/15 | done |
+| lbd_group | mil_small | 7/15 | partial |
+| pd_vs_control | prior | 15/15 | done |
+| pd_vs_control | cov_lr | 15/15 | done |
+| pd_vs_control | cov_rf | 15/15 | done |
 
 | output | status |
 |---|---|
@@ -38,24 +71,76 @@ Expected folds per model = n_splits x n_seeds = 15.
 | importance (SHAP) | MISSING |
 | DE | done |
 | DE vs model overlap | done |
-| scVI latent (psychad embed) | MISSING |
+| scVI latent (psychad embed) | done |
 | cohort transfer | MISSING |
 | scaling sweeps | MISSING |
 
-## 1.1 Aim 1: four_class
+## 1.1 Aim 1: ad_vs_control
+
+| model | n_donors | macro_f1 | macro_f1_ci_lo | macro_f1_ci_hi | balanced_accuracy | macro_auroc | n_params |
+|---|---|---|---|---|---|---|---|
+| cov_lr | 573 | 0.602 | 0.560 | 0.640 | 0.603 | 0.622 | 0 |
+| cov_rf | 573 | 0.566 | 0.524 | 0.604 | 0.566 | 0.595 | 0 |
+| prior | 573 | 0.383 | 0.369 | 0.397 | 0.500 | 0.498 | 0 |
+
+
+### Controls (ad_vs_control)
+
+_Not available: leaky-split comparison. Run: `psychad controls --task ad_vs_control --which leaky`_
+
+
+## 1.2 Aim 1: dlb_vs_control
+
+| model | n_donors | macro_f1 | macro_f1_ci_lo | macro_f1_ci_hi | balanced_accuracy | macro_auroc | n_params |
+|---|---|---|---|---|---|---|---|
+| cov_rf | 250 | 0.509 | 0.447 | 0.572 | 0.564 | 0.598 | 0 |
+| prior | 250 | 0.465 | 0.452 | 0.476 | 0.500 | 0.460 | 0 |
+| cov_lr | 250 | 0.424 | 0.368 | 0.480 | 0.557 | 0.560 | 0 |
+
+
+### Controls (dlb_vs_control)
+
+_Not available: leaky-split comparison. Run: `psychad controls --task dlb_vs_control --which leaky`_
+
+
+## 1.3 Aim 1: four_class
 
 | model | n_donors | macro_f1 | macro_f1_ci_lo | macro_f1_ci_hi | balanced_accuracy | macro_auroc | n_params | fit_predict_seconds |
 |---|---|---|---|---|---|---|---|---|
-| pb_class_lr | 635 | 0.352 | 0.332 | 0.370 | 0.369 | 0.730 | 120000 | 184.000 |
-| pb_class_xgb | 635 | 0.343 | 0.323 | 0.361 | 0.357 | 0.724 | 0 | 962.200 |
-| pb_lr | 635 | 0.340 | 0.319 | 0.358 | 0.356 | 0.677 | 20000 | 37.300 |
-| cell_xgb | 635 | 0.338 | 0.309 | 0.370 | 0.345 | 0.607 | 0 | 4436.500 |
-| cell_lr | 635 | 0.338 | 0.307 | 0.367 | 0.345 | 0.606 | 20000 | 1691.100 |
-| cell_mlp | 635 | 0.287 | 0.256 | 0.318 | 0.320 | 0.608 | 2694404 | 688.200 |
-| cov_lr | 635 | 0.287 | 0.259 | 0.314 | 0.320 | 0.540 | 0 | 0.000 |
-| mil_attn | 635 | 0.267 | 0.237 | 0.299 | 0.329 | 0.583 | 2763397 | 1015.200 |
-| cov_rf | 635 | 0.236 | 0.211 | 0.256 | 0.210 | 0.495 | 0 | 0.000 |
-| prior | 635 | 0.180 | 0.172 | 0.187 | 0.250 | 0.483 | 0 | 0.000 |
+| pb_class_lr_dt+bias | 635 | 0.423 | 0.371 | 0.474 | 0.418 | 0.726 |  |  |
+| pb_subtype_lr+bias | 635 | 0.415 | 0.363 | 0.466 | 0.409 | 0.725 |  |  |
+| pb_class_comp_lr+bias | 635 | 0.404 | 0.357 | 0.454 | 0.404 | 0.723 |  |  |
+| mil_scvi | 635 | 0.399 | 0.355 | 0.442 | 0.429 | 0.668 | 40140.000 | 1242.500 |
+| mil_small | 635 | 0.397 | 0.355 | 0.442 | 0.428 | 0.683 | 51020.000 | 1425.100 |
+| pb_scvi_lr+bias | 635 | 0.396 | 0.353 | 0.441 | 0.409 | 0.674 |  |  |
+| pb_class_lr_filt+bias | 635 | 0.392 | 0.349 | 0.437 | 0.392 | 0.719 |  |  |
+| mil_scvi+bias | 635 | 0.389 | 0.343 | 0.436 | 0.384 | 0.672 |  |  |
+| mil_small+bias | 635 | 0.382 | 0.333 | 0.429 | 0.378 | 0.684 |  |  |
+| pb_class_enet+bias | 635 | 0.380 | 0.332 | 0.426 | 0.380 | 0.689 |  |  |
+| pb_class_pca_lr+bias | 635 | 0.374 | 0.334 | 0.417 | 0.380 | 0.672 |  |  |
+| pb_class_lr_filt | 635 | 0.355 | 0.336 | 0.374 | 0.372 | 0.733 | 98232.000 | 573.600 |
+| pb_subtype_lr | 635 | 0.355 | 0.336 | 0.372 | 0.371 | 0.731 | 92872.000 | 367.600 |
+| pb_class_comp_lr | 635 | 0.352 | 0.334 | 0.371 | 0.369 | 0.731 | 98308.000 | 550.600 |
+| pb_class_lr | 635 | 0.352 | 0.332 | 0.370 | 0.369 | 0.730 | 120000.000 | 184.000 |
+| pb_class_lr_dt | 635 | 0.352 | 0.332 | 0.370 | 0.369 | 0.730 | 120000.000 | 601.100 |
+| pb_scvi_lr | 635 | 0.350 | 0.318 | 0.384 | 0.353 | 0.680 | 720.000 | 6.500 |
+| pb_class_enet | 635 | 0.350 | 0.321 | 0.384 | 0.358 | 0.701 | 12000.000 | 11838.100 |
+| pb_class_pca_lr | 635 | 0.345 | 0.314 | 0.381 | 0.352 | 0.685 | 556.000 | 13.200 |
+| pb_class_xgb | 635 | 0.343 | 0.323 | 0.361 | 0.357 | 0.724 | 0.000 | 962.200 |
+| pb_lr | 635 | 0.340 | 0.319 | 0.358 | 0.356 | 0.677 | 20000.000 | 37.300 |
+| cell_xgb | 635 | 0.338 | 0.309 | 0.370 | 0.345 | 0.607 | 0.000 | 4436.500 |
+| cell_lr | 635 | 0.338 | 0.307 | 0.367 | 0.345 | 0.606 | 20000.000 | 1691.100 |
+| pb_comp_lr+bias | 635 | 0.329 | 0.297 | 0.361 | 0.338 | 0.608 |  |  |
+| mlp_scvi+bias | 635 | 0.322 | 0.282 | 0.367 | 0.322 | 0.605 |  |  |
+| mlp_small+bias | 635 | 0.303 | 0.278 | 0.329 | 0.309 | 0.603 |  |  |
+| pb_comp_lr | 635 | 0.292 | 0.270 | 0.312 | 0.307 | 0.621 | 76.000 | 3.100 |
+| cell_mlp | 635 | 0.287 | 0.256 | 0.318 | 0.320 | 0.608 | 2694404.000 | 688.200 |
+| cov_lr | 635 | 0.287 | 0.259 | 0.314 | 0.320 | 0.540 | 0.000 | 0.000 |
+| mlp_small | 635 | 0.277 | 0.245 | 0.310 | 0.319 | 0.605 | 45460.000 | 678.900 |
+| mlp_scvi | 635 | 0.270 | 0.238 | 0.302 | 0.326 | 0.612 | 11860.000 | 560.800 |
+| mil_attn | 635 | 0.267 | 0.237 | 0.299 | 0.329 | 0.583 | 2763397.000 | 1015.200 |
+| cov_rf | 635 | 0.236 | 0.211 | 0.256 | 0.210 | 0.495 | 0.000 | 0.000 |
+| prior | 635 | 0.180 | 0.172 | 0.187 | 0.250 | 0.483 | 0.000 | 0.000 |
 
 Best baseline: **cov_lr** macro-F1 = 0.287 (CI 0.259-0.314).
 
@@ -63,37 +148,89 @@ Best baseline: **cov_lr** macro-F1 = 0.287 (CI 0.259-0.314).
 
 | model | macro_f1_delta | macro_f1_delta_ci_lo | macro_f1_delta_ci_hi | macro_f1_p_holm | macro_auroc_delta | macro_auroc_delta_ci_lo | macro_auroc_delta_ci_hi | macro_auroc_p_holm | verdict |
 |---|---|---|---|---|---|---|---|---|---|
-| pb_class_lr | 0.065 | 0.034 | 0.095 | 0.007 | 0.190 | 0.139 | 0.242 | 0.007 | beats baseline (F1 and AUROC) |
-| pb_class_xgb | 0.057 | 0.028 | 0.088 | 0.007 | 0.183 | 0.128 | 0.236 | 0.007 | beats baseline (F1 and AUROC) |
-| pb_lr | 0.053 | 0.022 | 0.082 | 0.007 | 0.137 | 0.075 | 0.194 | 0.007 | beats baseline (F1 and AUROC) |
-| cell_xgb | 0.052 | 0.012 | 0.092 | 0.028 | 0.066 | 0.006 | 0.126 | 0.088 | beats baseline on macro-F1 only |
-| cell_lr | 0.051 | 0.012 | 0.089 | 0.028 | 0.065 | 0.003 | 0.124 | 0.088 | beats baseline on macro-F1 only |
-| cell_mlp | 0.001 | -0.038 | 0.039 | 0.999 | 0.068 | 0.003 | 0.132 | 0.088 | not shown to beat baseline |
-| mil_attn | -0.020 | -0.062 | 0.023 | 0.999 | 0.042 | -0.022 | 0.105 | 0.095 | not shown to beat baseline |
+| pb_class_lr_dt+bias | 0.136 | 0.080 | 0.190 | 0.031 | 0.186 | 0.130 | 0.237 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_subtype_lr+bias | 0.128 | 0.073 | 0.188 | 0.031 | 0.184 | 0.125 | 0.242 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_class_comp_lr+bias | 0.118 | 0.064 | 0.170 | 0.031 | 0.182 | 0.125 | 0.236 | 0.031 | beats baseline (F1 and AUROC) |
+| mil_scvi | 0.113 | 0.065 | 0.161 | 0.031 | 0.128 | 0.066 | 0.186 | 0.031 | beats baseline (F1 and AUROC) |
+| mil_small | 0.111 | 0.064 | 0.161 | 0.031 | 0.143 | 0.083 | 0.203 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_scvi_lr+bias | 0.109 | 0.064 | 0.157 | 0.031 | 0.134 | 0.071 | 0.190 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_class_lr_filt+bias | 0.105 | 0.055 | 0.153 | 0.031 | 0.179 | 0.122 | 0.233 | 0.031 | beats baseline (F1 and AUROC) |
+| mil_scvi+bias | 0.102 | 0.054 | 0.159 | 0.031 | 0.132 | 0.071 | 0.189 | 0.031 | beats baseline (F1 and AUROC) |
+| mil_small+bias | 0.096 | 0.041 | 0.149 | 0.031 | 0.144 | 0.085 | 0.202 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_class_enet+bias | 0.093 | 0.044 | 0.143 | 0.031 | 0.149 | 0.091 | 0.205 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_class_pca_lr+bias | 0.088 | 0.044 | 0.132 | 0.031 | 0.132 | 0.077 | 0.188 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_class_lr_filt | 0.069 | 0.039 | 0.099 | 0.031 | 0.193 | 0.141 | 0.244 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_subtype_lr | 0.068 | 0.040 | 0.098 | 0.031 | 0.191 | 0.134 | 0.247 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_class_comp_lr | 0.066 | 0.035 | 0.096 | 0.031 | 0.191 | 0.138 | 0.242 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_class_lr | 0.065 | 0.034 | 0.095 | 0.031 | 0.190 | 0.139 | 0.242 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_class_lr_dt | 0.065 | 0.034 | 0.095 | 0.031 | 0.190 | 0.139 | 0.242 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_scvi_lr | 0.063 | 0.022 | 0.102 | 0.031 | 0.140 | 0.082 | 0.195 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_class_enet | 0.063 | 0.024 | 0.108 | 0.031 | 0.161 | 0.104 | 0.217 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_class_pca_lr | 0.058 | 0.019 | 0.099 | 0.033 | 0.145 | 0.088 | 0.202 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_class_xgb | 0.057 | 0.028 | 0.088 | 0.031 | 0.183 | 0.128 | 0.236 | 0.031 | beats baseline (F1 and AUROC) |
+| pb_lr | 0.053 | 0.022 | 0.082 | 0.031 | 0.137 | 0.075 | 0.194 | 0.031 | beats baseline (F1 and AUROC) |
+| cell_xgb | 0.052 | 0.012 | 0.092 | 0.070 | 0.066 | 0.006 | 0.126 | 0.147 | not shown to beat baseline |
+| cell_lr | 0.051 | 0.012 | 0.089 | 0.081 | 0.065 | 0.003 | 0.124 | 0.147 | not shown to beat baseline |
+| pb_comp_lr+bias | 0.043 | 0.000 | 0.085 | 0.200 | 0.068 | 0.010 | 0.128 | 0.117 | not shown to beat baseline |
+| mlp_scvi+bias | 0.035 | -0.015 | 0.091 | 0.566 | 0.065 | 0.003 | 0.124 | 0.147 | not shown to beat baseline |
+| mlp_small+bias | 0.016 | -0.023 | 0.055 | 1.000 | 0.062 | -0.000 | 0.121 | 0.147 | not shown to beat baseline |
+| pb_comp_lr | 0.005 | -0.028 | 0.037 | 1.000 | 0.080 | 0.022 | 0.137 | 0.031 | beats baseline on AUROC only |
+| cell_mlp | 0.001 | -0.038 | 0.039 | 1.000 | 0.068 | 0.003 | 0.132 | 0.147 | not shown to beat baseline |
+| mlp_small | -0.009 | -0.051 | 0.031 | 1.000 | 0.064 | 0.004 | 0.126 | 0.147 | not shown to beat baseline |
+| mlp_scvi | -0.017 | -0.055 | 0.023 | 1.000 | 0.072 | 0.012 | 0.134 | 0.117 | not shown to beat baseline |
+| mil_attn | -0.020 | -0.062 | 0.023 | 1.000 | 0.042 | -0.022 | 0.105 | 0.147 | not shown to beat baseline |
 
-Per-class recall, best model (**pb_class_lr**): Control = 0.63, AD = 0.84, PD = 0.00, DLB = 0.00
+Per-class recall, best model (**pb_class_lr_dt+bias**): Control = 0.67, AD = 0.75, PD = 0.10, DLB = 0.15
 
 Per-class recall (fraction of each class's donors predicted correctly), all models:
 
 | model | Control | AD | PD | DLB |
 |---|---|---|---|---|
+| pb_class_lr_dt+bias | 0.67 | 0.75 | 0.10 | 0.15 |
+| pb_subtype_lr+bias | 0.65 | 0.77 | 0.03 | 0.18 |
+| pb_class_comp_lr+bias | 0.69 | 0.73 | 0.07 | 0.12 |
+| mil_scvi | 0.51 | 0.66 | 0.24 | 0.30 |
+| mil_small | 0.52 | 0.65 | 0.24 | 0.30 |
+| pb_scvi_lr+bias | 0.56 | 0.71 | 0.07 | 0.30 |
+| pb_class_lr_filt+bias | 0.68 | 0.76 | 0.07 | 0.06 |
+| mil_scvi+bias | 0.50 | 0.81 | 0.07 | 0.15 |
+| mil_small+bias | 0.55 | 0.77 | 0.07 | 0.12 |
+| pb_class_enet+bias | 0.65 | 0.69 | 0.03 | 0.15 |
+| pb_class_pca_lr+bias | 0.59 | 0.68 | 0.07 | 0.18 |
+| pb_class_lr_filt | 0.64 | 0.85 | 0.00 | 0.00 |
+| pb_subtype_lr | 0.62 | 0.86 | 0.00 | 0.00 |
+| pb_class_comp_lr | 0.63 | 0.85 | 0.00 | 0.00 |
 | pb_class_lr | 0.63 | 0.84 | 0.00 | 0.00 |
+| pb_class_lr_dt | 0.63 | 0.84 | 0.00 | 0.00 |
+| pb_scvi_lr | 0.58 | 0.77 | 0.00 | 0.06 |
+| pb_class_enet | 0.59 | 0.81 | 0.00 | 0.03 |
+| pb_class_pca_lr | 0.54 | 0.83 | 0.03 | 0.00 |
 | pb_class_xgb | 0.54 | 0.88 | 0.00 | 0.00 |
 | pb_lr | 0.59 | 0.83 | 0.00 | 0.00 |
 | cell_xgb | 0.62 | 0.70 | 0.00 | 0.06 |
 | cell_lr | 0.55 | 0.62 | 0.00 | 0.21 |
+| pb_comp_lr+bias | 0.50 | 0.67 | 0.00 | 0.18 |
+| mlp_scvi+bias | 0.43 | 0.70 | 0.03 | 0.12 |
+| mlp_small+bias | 0.54 | 0.66 | 0.00 | 0.03 |
+| pb_comp_lr | 0.39 | 0.84 | 0.00 | 0.00 |
 | cell_mlp | 0.37 | 0.43 | 0.21 | 0.27 |
 | cov_lr | 0.36 | 0.55 | 0.00 | 0.36 |
+| mlp_small | 0.29 | 0.44 | 0.24 | 0.30 |
+| mlp_scvi | 0.27 | 0.42 | 0.31 | 0.30 |
 | mil_attn | 0.09 | 0.71 | 0.24 | 0.27 |
 | cov_rf | 0.37 | 0.40 | 0.07 | 0.00 |
 | prior | 0.00 | 1.00 | 0.00 | 0.00 |
 
 **Neural-net training diagnostics** (means over folds). If the best checkpoint is the first evaluation (best_epoch_mean ~1 for per-epoch evaluation), the network never improved on held-out donors. best_val_auroc is on validation donors (part of the training set), not on the test fold.
 
-| model | folds | best_epoch_mean | epochs_run_mean | best_val_loss |
-|---|---|---|---|---|
-| cell_mlp | 15 | 1.000 | 6.000 | 1.390 |
-| mil_attn | 15 | 250.000 | 1750.000 | 1.539 |
+| model | folds | best_epoch_mean | epochs_run_mean | best_val_loss | best_val_auroc | best_step_mean | steps_run_mean | n_ensemble |
+|---|---|---|---|---|---|---|---|---|
+| cell_mlp | 15 | 1.000 | 6.000 | 1.390 |  |  |  |  |
+| mil_attn | 15 | 250.000 | 1750.000 | 1.539 |  |  |  |  |
+| mil_scvi | 15 | 1427.333 | 2103.333 | 1.563 | 0.665 | 1427.333 | 2103.333 | 5.000 |
+| mil_small | 15 | 1486.000 | 2146.667 | 1.580 | 0.672 | 1486.000 | 2146.667 | 5.000 |
+| mlp_scvi | 15 | 4.400 | 6.400 | 1.392 | 0.622 | 1697.333 | 2649.600 | 5.000 |
+| mlp_small | 15 | 3.867 | 5.800 | 1.392 | 0.617 | 1437.333 | 2413.867 | 5.000 |
 
 ### Controls (four_class)
 
@@ -112,42 +249,129 @@ Per-class recall (fraction of each class's donors predicted correctly), all mode
 | balanced_accuracy | 0.3444 | 0.2505 | 0.2666 | 0.0050 |
 | macro_auroc | 0.6465 | 0.4972 | 0.5381 | 0.0050 |
 
-## 1.2 Aim 1: lbd_group
+## 1.4 Aim 1: lbd_group
 
 | model | n_donors | macro_f1 | macro_f1_ci_lo | macro_f1_ci_hi | balanced_accuracy | macro_auroc | n_params | fit_predict_seconds |
 |---|---|---|---|---|---|---|---|---|
-| cell_lr | 635 | 0.496 | 0.452 | 0.541 | 0.500 | 0.674 | 15000 | 1331.400 |
-| pb_class_xgb | 635 | 0.462 | 0.434 | 0.484 | 0.480 | 0.755 | 0 | 775.700 |
-| pb_lr | 635 | 0.462 | 0.430 | 0.496 | 0.477 | 0.701 | 15000 | 26.400 |
-| pb_class_lr | 635 | 0.457 | 0.431 | 0.482 | 0.479 | 0.748 | 90000 | 125.200 |
-| cell_mlp | 635 | 0.450 | 0.412 | 0.493 | 0.457 | 0.636 | 2694147 | 898.000 |
-| mil_attn | 635 | 0.407 | 0.371 | 0.445 | 0.418 | 0.607 | 2763140 | 1104.900 |
+| pb_subtype_lr+bias | 635 | 0.515 | 0.469 | 0.556 | 0.515 | 0.744 |  |  |
+| mil_small+bias | 635 | 0.507 | 0.462 | 0.549 | 0.505 | 0.706 |  |  |
+| mil_small | 635 | 0.506 | 0.463 | 0.546 | 0.508 | 0.707 | 49065.000 | 800.400 |
+| pb_class_comp_lr+bias | 635 | 0.505 | 0.465 | 0.548 | 0.507 | 0.751 |  |  |
+| pb_class_lr_dt+bias | 635 | 0.499 | 0.459 | 0.541 | 0.502 | 0.739 |  |  |
+| pb_class_lr_filt+bias | 635 | 0.498 | 0.456 | 0.540 | 0.502 | 0.751 |  |  |
+| cell_lr | 635 | 0.496 | 0.452 | 0.541 | 0.500 | 0.674 | 15000.000 | 1331.400 |
+| pb_class_enet+bias | 635 | 0.483 | 0.439 | 0.526 | 0.481 | 0.707 |  |  |
+| pb_class_pca_lr+bias | 635 | 0.481 | 0.442 | 0.519 | 0.481 | 0.704 |  |  |
+| pb_subtype_lr | 635 | 0.468 | 0.443 | 0.492 | 0.490 | 0.745 | 69654.000 | 240.200 |
+| pb_class_xgb | 635 | 0.462 | 0.434 | 0.484 | 0.480 | 0.755 | 0.000 | 775.700 |
+| pb_lr | 635 | 0.462 | 0.430 | 0.496 | 0.477 | 0.701 | 15000.000 | 26.400 |
+| pb_class_lr | 635 | 0.457 | 0.431 | 0.482 | 0.479 | 0.748 | 90000.000 | 125.200 |
+| pb_class_lr_dt | 635 | 0.457 | 0.431 | 0.482 | 0.479 | 0.748 | 90000.000 | 371.900 |
+| pb_class_lr_filt | 635 | 0.455 | 0.430 | 0.480 | 0.476 | 0.754 | 73674.000 | 362.000 |
+| pb_class_comp_lr | 635 | 0.453 | 0.427 | 0.479 | 0.474 | 0.752 | 73731.000 | 342.000 |
+| cell_mlp | 635 | 0.450 | 0.412 | 0.493 | 0.457 | 0.636 | 2694147.000 | 898.000 |
+| pb_class_pca_lr | 635 | 0.449 | 0.424 | 0.475 | 0.468 | 0.712 | 417.000 | 10.500 |
+| mlp_small | 635 | 0.439 | 0.399 | 0.478 | 0.446 | 0.623 | 44815.000 | 798.300 |
+| cov_lr | 635 | 0.437 | 0.400 | 0.474 | 0.458 | 0.605 | 0.000 | 0.000 |
+| pb_class_enet | 635 | 0.432 | 0.406 | 0.456 | 0.451 | 0.710 | 9000.000 | 8953.000 |
+| mlp_small+bias | 635 | 0.418 | 0.387 | 0.451 | 0.434 | 0.615 |  |  |
+| cov_rf | 635 | 0.414 | 0.373 | 0.450 | 0.443 | 0.580 | 0.000 | 0.000 |
+| mil_attn | 635 | 0.407 | 0.371 | 0.445 | 0.418 | 0.607 | 2763140.000 | 1104.900 |
+| pb_comp_lr+bias | 635 | 0.406 | 0.371 | 0.439 | 0.410 | 0.618 |  |  |
+| pb_comp_lr | 635 | 0.388 | 0.360 | 0.414 | 0.407 | 0.625 | 57.000 | 2.100 |
+| prior | 635 | 0.239 | 0.229 | 0.249 | 0.333 | 0.479 | 0.000 | 0.000 |
 
-**No baselines yet**: run `psychad controls --which covariate` before reading these numbers.
+Best baseline: **cov_lr** macro-F1 = 0.437 (CI 0.400-0.474).
 
-Per-class recall, best model (**cell_lr**): Control = 0.65, AD = 0.66, LBD = 0.19
+**Paired test vs cov_lr** (same donors resampled for both models; one-sided p, Holm-corrected over the models of this task). A model beats the baseline when the whole delta CI is above 0 and p_holm < 0.05.
+
+| model | macro_f1_delta | macro_f1_delta_ci_lo | macro_f1_delta_ci_hi | macro_f1_p_holm | macro_auroc_delta | macro_auroc_delta_ci_lo | macro_auroc_delta_ci_hi | macro_auroc_p_holm | verdict |
+|---|---|---|---|---|---|---|---|---|---|
+| pb_subtype_lr+bias | 0.077 | 0.021 | 0.133 | 0.096 | 0.139 | 0.089 | 0.184 | 0.024 | beats baseline on AUROC only |
+| mil_small+bias | 0.069 | 0.013 | 0.126 | 0.231 | 0.102 | 0.052 | 0.150 | 0.024 | beats baseline on AUROC only |
+| mil_small | 0.068 | 0.014 | 0.123 | 0.115 | 0.103 | 0.052 | 0.152 | 0.024 | beats baseline on AUROC only |
+| pb_class_comp_lr+bias | 0.068 | 0.015 | 0.120 | 0.154 | 0.146 | 0.097 | 0.192 | 0.024 | beats baseline on AUROC only |
+| pb_class_lr_dt+bias | 0.061 | 0.008 | 0.116 | 0.285 | 0.135 | 0.085 | 0.181 | 0.024 | beats baseline on AUROC only |
+| pb_class_lr_filt+bias | 0.061 | 0.008 | 0.115 | 0.260 | 0.146 | 0.099 | 0.190 | 0.024 | beats baseline on AUROC only |
+| cell_lr | 0.059 | 0.000 | 0.119 | 0.468 | 0.069 | 0.017 | 0.119 | 0.063 | not shown to beat baseline |
+| pb_class_enet+bias | 0.045 | -0.011 | 0.096 | 0.900 | 0.102 | 0.050 | 0.151 | 0.024 | beats baseline on AUROC only |
+| pb_class_pca_lr+bias | 0.043 | -0.010 | 0.094 | 0.911 | 0.099 | 0.045 | 0.149 | 0.024 | beats baseline on AUROC only |
+| pb_subtype_lr | 0.031 | -0.012 | 0.071 | 1.000 | 0.140 | 0.091 | 0.184 | 0.024 | beats baseline on AUROC only |
+| pb_class_xgb | 0.024 | -0.017 | 0.065 | 1.000 | 0.150 | 0.102 | 0.197 | 0.024 | beats baseline on AUROC only |
+| pb_lr | 0.024 | -0.022 | 0.074 | 1.000 | 0.096 | 0.047 | 0.142 | 0.024 | beats baseline on AUROC only |
+| pb_class_lr_dt | 0.020 | -0.023 | 0.063 | 1.000 | 0.143 | 0.094 | 0.187 | 0.024 | beats baseline on AUROC only |
+| pb_class_lr | 0.020 | -0.023 | 0.063 | 1.000 | 0.143 | 0.094 | 0.187 | 0.024 | beats baseline on AUROC only |
+| pb_class_lr_filt | 0.018 | -0.026 | 0.060 | 1.000 | 0.149 | 0.101 | 0.193 | 0.024 | beats baseline on AUROC only |
+| pb_class_comp_lr | 0.016 | -0.027 | 0.059 | 1.000 | 0.148 | 0.100 | 0.191 | 0.024 | beats baseline on AUROC only |
+| cell_mlp | 0.013 | -0.039 | 0.066 | 1.000 | 0.031 | -0.026 | 0.084 | 0.707 | not shown to beat baseline |
+| pb_class_pca_lr | 0.012 | -0.032 | 0.056 | 1.000 | 0.107 | 0.056 | 0.157 | 0.024 | beats baseline on AUROC only |
+| mlp_small | 0.001 | -0.054 | 0.057 | 1.000 | 0.019 | -0.037 | 0.071 | 1.000 | not shown to beat baseline |
+| pb_class_enet | -0.006 | -0.049 | 0.035 | 1.000 | 0.105 | 0.054 | 0.153 | 0.024 | beats baseline on AUROC only |
+| mlp_small+bias | -0.019 | -0.068 | 0.028 | 1.000 | 0.011 | -0.045 | 0.061 | 1.000 | not shown to beat baseline |
+| mil_attn | -0.030 | -0.078 | 0.023 | 1.000 | 0.002 | -0.053 | 0.062 | 1.000 | not shown to beat baseline |
+| pb_comp_lr+bias | -0.031 | -0.080 | 0.015 | 1.000 | 0.014 | -0.039 | 0.062 | 1.000 | not shown to beat baseline |
+| pb_comp_lr | -0.050 | -0.095 | -0.006 | 1.000 | 0.021 | -0.032 | 0.071 | 1.000 | not shown to beat baseline |
+
+Per-class recall, best model (**pb_subtype_lr+bias**): Control = 0.65, AD = 0.73, LBD = 0.16
 
 Per-class recall (fraction of each class's donors predicted correctly), all models:
 
 | model | Control | AD | LBD |
 |---|---|---|---|
+| pb_subtype_lr+bias | 0.65 | 0.73 | 0.16 |
+| mil_small+bias | 0.59 | 0.75 | 0.18 |
+| mil_small | 0.59 | 0.70 | 0.23 |
+| pb_class_comp_lr+bias | 0.66 | 0.74 | 0.11 |
+| pb_class_lr_dt+bias | 0.67 | 0.74 | 0.10 |
+| pb_class_lr_filt+bias | 0.66 | 0.74 | 0.10 |
 | cell_lr | 0.65 | 0.66 | 0.19 |
+| pb_class_enet+bias | 0.57 | 0.70 | 0.18 |
+| pb_class_pca_lr+bias | 0.60 | 0.73 | 0.11 |
+| pb_subtype_lr | 0.62 | 0.85 | 0.00 |
 | pb_class_xgb | 0.56 | 0.88 | 0.00 |
 | pb_lr | 0.59 | 0.82 | 0.02 |
 | pb_class_lr | 0.61 | 0.83 | 0.00 |
+| pb_class_lr_dt | 0.61 | 0.83 | 0.00 |
+| pb_class_lr_filt | 0.61 | 0.82 | 0.00 |
+| pb_class_comp_lr | 0.61 | 0.81 | 0.00 |
 | cell_mlp | 0.62 | 0.59 | 0.16 |
+| pb_class_pca_lr | 0.54 | 0.86 | 0.00 |
+| mlp_small | 0.63 | 0.60 | 0.11 |
+| cov_lr | 0.45 | 0.57 | 0.35 |
+| pb_class_enet | 0.57 | 0.78 | 0.00 |
+| mlp_small+bias | 0.65 | 0.62 | 0.03 |
+| cov_rf | 0.43 | 0.51 | 0.39 |
 | mil_attn | 0.40 | 0.58 | 0.27 |
+| pb_comp_lr+bias | 0.49 | 0.69 | 0.05 |
+| pb_comp_lr | 0.40 | 0.83 | 0.00 |
+| prior | 0.00 | 1.00 | 0.00 |
 
 **Neural-net training diagnostics** (means over folds). If the best checkpoint is the first evaluation (best_epoch_mean ~1 for per-epoch evaluation), the network never improved on held-out donors. best_val_auroc is on validation donors (part of the training set), not on the test fold.
 
-| model | folds | best_epoch_mean | epochs_run_mean | best_val_loss |
-|---|---|---|---|---|
-| cell_mlp | 15 | 1.267 | 6.267 | 1.096 |
-| mil_attn | 15 | 250.000 | 1750.000 | 1.174 |
+| model | folds | best_epoch_mean | epochs_run_mean | best_val_loss | best_val_auroc | best_step_mean | steps_run_mean | n_ensemble |
+|---|---|---|---|---|---|---|---|---|
+| cell_mlp | 15 | 1.267 | 6.267 | 1.096 |  |  |  |  |
+| mil_attn | 15 | 250.000 | 1750.000 | 1.174 |  |  |  |  |
+| mil_small | 7 | 2111.429 | 2617.143 | 1.112 | 0.718 | 2111.429 | 2617.143 | 5.000 |
+| mlp_small | 15 | 5.000 | 7.200 | 1.092 | 0.639 | 2021.333 | 2979.467 | 5.000 |
 
 ### Controls (lbd_group)
 
 _Not available: leaky-split comparison. Run: `psychad controls --task lbd_group --which leaky`_
+
+
+## 1.5 Aim 1: pd_vs_control
+
+| model | n_donors | macro_f1 | macro_f1_ci_lo | macro_f1_ci_hi | balanced_accuracy | macro_auroc | n_params |
+|---|---|---|---|---|---|---|---|
+| cov_rf | 246 | 0.566 | 0.495 | 0.638 | 0.624 | 0.623 | 0 |
+| prior | 246 | 0.469 | 0.456 | 0.479 | 0.500 | 0.474 | 0 |
+| cov_lr | 246 | 0.455 | 0.396 | 0.515 | 0.563 | 0.536 | 0 |
+
+
+### Controls (pd_vs_control)
+
+_Not available: leaky-split comparison. Run: `psychad controls --task pd_vs_control --which leaky`_
 
 
 ## 1.9 External check: train on one cohort, test on the other
